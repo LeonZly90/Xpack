@@ -1,71 +1,43 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
+from flask import Flask, render_template_string, request
 
-import sys
-print(sys.executable)
-print(sys.path)
-
-# This example shows a basic structure of a demo website for X-Pack using Python (Flask) for the backend and React for the frontend.
-
-# --- Backend (Python with Flask) --- #
-# Install required packages: Flask, flask-cors, pymongo
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-from pymongo import MongoClient
-from bson import ObjectId
-from pymongo.errors import ConnectionFailure
-
-# Create a Flask app
 app = Flask(__name__)
-CORS(app)
 
-# MongoDB connection
-client = MongoClient('mongodb://localhost:27017/')
-db = client['xpack']
+@app.route('/', methods=['GET', 'POST'])
+def home():
+    search_result = None
+    if request.method == 'POST':
+        search_query = request.form.get('search')
+        search_result = f"You searched for: {search_query}"
 
-# Define collections for Supplier and Product
-suppliers_collection = db['suppliers']
-products_collection = db['products']
-
-def init_db():
-    try:
-        # The ismaster command is cheap and does not require auth.
-        client.admin.command('ismaster')
-        print("MongoDB connection successful")
-        
-        # Initialize with some data if collections are empty
-        if suppliers_collection.count_documents({}) == 0:
-            suppliers_collection.insert_many([
-                {"name": "Supplier A"},
-                {"name": "Supplier B"}
-            ])
-        
-        if products_collection.count_documents({}) == 0:
-            products_collection.insert_many([
-                {"name": "Product 1", "category": "Electronics"},
-                {"name": "Product 2", "category": "Clothing"}
-            ])
-        
-    except ConnectionFailure:
-        print("MongoDB connection failed")
-
-# Define backend routes
-@app.route('/api/suppliers', methods=['GET'])
-def get_suppliers():
-    suppliers = list(suppliers_collection.find())
-    for supplier in suppliers:
-        supplier['_id'] = str(supplier['_id'])
-    return jsonify(suppliers)
-
-@app.route('/api/products', methods=['GET'])
-def get_products():
-    category = request.args.get('category')
-    query = {'category': category} if category else {}
-    products = list(products_collection.find(query))
-    for product in products:
-        product['_id'] = str(product['_id'])
-    return jsonify(products)
+    html = """
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>X-Pack Demo</title>
+        <style>
+            body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+            h1 { color: #333; }
+            form { margin-bottom: 20px; }
+            input[type="text"] { padding: 5px; width: 200px; }
+            input[type="submit"] { padding: 5px 10px; }
+            #result { color: #007bff; }
+        </style>
+    </head>
+    <body>
+        <h1>Welcome to X-Pack Demo</h1>
+        <form method="post">
+            <input type="text" name="search" placeholder="Enter search term">
+            <input type="submit" value="Search">
+        </form>
+        {% if search_result %}
+        <p id="result">{{ search_result }}</p>
+        {% endif %}
+    </body>
+    </html>
+    """
+    return render_template_string(html, search_result=search_result)
 
 if __name__ == '__main__':
-    init_db()
-    app.run(port=5000, debug=True)
+    app.run(debug=True)
