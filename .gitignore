@@ -1,5 +1,5 @@
 # Configuration files with sensitive data
-config.py
+secret.py
 
 # Python
 __pycache__/

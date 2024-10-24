@@ -1,40 +1,43 @@
 from pymongo import MongoClient
 from bson.binary import Binary
+import pandas as pd
 import os
+import config
 
-# MongoDB connection
-MONGO_URI = "mongodb+srv://leonzly90:Thisismynewpwd1!@xpackcluster0.puaxv.mongodb.net/?retryWrites=true&w=majority&appName=xpackCluster0"
-client = MongoClient(MONGO_URI)
-db = client['xpack_db0']
-products_collection = db['xpack_collection0']
+def load_data():
+    # MongoDB connection
+    client = MongoClient(config.MONGO_URI)
+    db = client[config.DB_NAME]
+    products_collection = db[config.COLLECTION_NAME]
 
-# Directory containing images
-images_dir = r"C:\Users\jeffz\Desktop\Projects\Xpack\images"
+    # Directory
+    images_dir = os.path.join(config.BASE_DIR, "image")
+    text_dir = os.path.join(config.BASE_DIR, "text")
 
-# Get all PNG files from the directory
-image_files = [f for f in os.listdir(images_dir) if f.endswith('.png')]
-images_binary = []
+    # Get suppliers (sub dir)
+    suppliers = [name for name in os.listdir(text_dir)
+                if os.path.isdir(os.path.join(text_dir, name))]
 
-# Read all images
-for image_file in image_files:
-    image_path = os.path.join(images_dir, image_file)
-    print(f"Processing image: {image_file}")
-    with open(image_path, 'rb') as f:
-        images_binary.append(Binary(f.read()))
+    # Upload info to DB by supplier
+    for supplier in suppliers:
+        # Create product document with images
+        products = pd.read_csv(os.path.join(text_dir, supplier, supplier + "-products.csv")).to_dict(orient='records')
+        
+        for product in products:
+            # Get all PNG files from the directory
+            image_files = [f for f in os.listdir(os.path.join(images_dir, supplier)) if f.startswith(product["ImageName"])]
+            image_dict = {}
 
-# Create product document with images
-product_data = {
-    "Supplier Name": "Aptar",
-    "Category": "Fragrance",
-    "Pump Technology": "Spray Pump",
-    "Product Name": "InNue",
-    "Product description": "Classic INUNE provides a precise spray...",
-    "Dosage option": "70, 100mcl",
-    "Fixation/Neck finishes": "Screw on 15, Crimp 13, 15, 17, 18, 20. Snap on 13mm, 15mm",
-    "images": images_binary  # Store array of binary images
-}
+            # Read all images
+            for image_file in image_files:
+                image_path = os.path.join(images_dir, supplier, image_file)
+                print(f"Processing image: {image_file}")
+                with open(image_path, 'rb') as f:
+                    image_dict[image_file] = Binary(f.read())
 
-# Insert into MongoDB
-result = products_collection.insert_one(product_data)
-print(f"Inserted document with ID: {result.inserted_id}")
-print(f"Processed {len(images_binary)} images")
+            product["Images"] = image_dict
+
+            # Insert into MongoDB
+            result = products_collection.insert_one(product)
+            print(f"Inserted document with ID: {result.inserted_id}")
+            print(f"Processed {len(image_dict)} images")

@@ -3,6 +3,8 @@ from pymongo import MongoClient
 from bson import ObjectId
 import os
 import config  # Import the config file
+import pandas as pd
+from load_data import load_data
 
 # venv\Scripts\activate
 
@@ -14,20 +16,10 @@ db = client[config.DB_NAME]
 products_collection = db[config.COLLECTION_NAME]
 print(db, products_collection)
 
-# Set up paths
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-IMAGES_FOLDER = os.path.join(BASE_DIR, 'images')
-EXCEL_FILE = os.path.join(BASE_DIR, 'Product details by suppliers.xlsx')
-
-app.config['IMAGES_FOLDER'] = IMAGES_FOLDER
-
 @app.route('/upload', methods=['POST'])
 def upload_data():
-    df = pd.read_excel(EXCEL_FILE)
-    data = df.to_dict('records')
     products_collection.delete_many({})  # Clear existing data
-    products_collection.insert_many(data)
-    return jsonify({"message": "Data uploaded successfully", "count": len(data)})
+    load_data()
 
 @app.route('/', methods=['GET', 'POST'])
 def home():
@@ -36,13 +28,13 @@ def home():
         search_query = request.form.get('search').lower()
         search_result = list(products_collection.find({
             "$or": [
-                {"Supplier Name": {"$regex": search_query, "$options": "i"}},
+                {"SupplierName": {"$regex": search_query, "$options": "i"}},
                 {"Category": {"$regex": search_query, "$options": "i"}},
-                {"Pump Technology": {"$regex": search_query, "$options": "i"}},
-                {"Product Name": {"$regex": search_query, "$options": "i"}},
-                {"Product description": {"$regex": search_query, "$options": "i"}},
-                {"Dosage option": {"$regex": search_query, "$options": "i"}},
-                {"Fixation/Neck finishes": {"$regex": search_query, "$options": "i"}},
+                {"PumpTechnology": {"$regex": search_query, "$options": "i"}},
+                {"ProductName": {"$regex": search_query, "$options": "i"}},
+                {"ProductDescription": {"$regex": search_query, "$options": "i"}},
+                {"DosageOption": {"$regex": search_query, "$options": "i"}},
+                {"FixationNeckFinish": {"$regex": search_query, "$options": "i"}},
             ]
         }))
         # Add debug print
@@ -93,16 +85,16 @@ def home():
             </tr>
             {% for row in search_result %}
             <tr>
-                <td>{{ row['Supplier Name'] }}</td>
+                <td>{{ row['SupplierName'] }}</td>
                 <td>{{ row['Category'] }}</td>
-                <td>{{ row['Pump Technology'] }}</td>
-                <td>{{ row['Product Name'] }}</td>
-                <td>{{ row['Product description'] }}</td>
-                <td>{{ row['Dosage option'] }}</td>
-                <td>{{ row['Fixation/Neck finishes'] }}</td>
+                <td>{{ row['PumpTechnology'] }}</td>
+                <td>{{ row['ProductName'] }}</td>
+                <td>{{ row['ProductDescription'] }}</td>
+                <td>{{ row['DosageOption'] }}</td>
+                <td>{{ row['FixationNeckFinish'] }}</td>
                 <td>
-                    {% if row['images'] %}
-                        {% for i in range(row['images']|length) %}
+                    {% if row['Images'] %}
+                        {% for i in range(row['Images']|length) %}
                             <span class="image-cell" onclick="showImage('{{ row['_id'] }}/{{ i }}')">View Image {{ i + 1 }}</span><br>
                         {% endfor %}
                     {% endif %}
@@ -138,12 +130,13 @@ def home():
 def serve_image(object_id, image_index):
     # Find the document
     document = products_collection.find_one({'_id': ObjectId(object_id)})
-    if document and 'images' in document and len(document['images']) > image_index:
+    if document and 'Images' in document and len(document['Images']) > image_index:
         # Get the binary image data
-        image_binary = document['images'][image_index]
+        image_binary = document['Images'][image_index]
         # Return it as a response
         return Response(image_binary, mimetype='image/png')
     return 'Image not found', 404
 
 if __name__ == '__main__':
+    upload_data()
     app.run(debug=True)
